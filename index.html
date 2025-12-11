@@ -29,7 +29,7 @@
 
 <header>
   <img src="logo.png" alt="Logo">
-  <div class="title">PAINEL DE OPERAÇÕES</div>
+  <div class="title">PAINEL OPERACIONAL</div>
   <div class="clock" id="clock">--:--</div>
 </header>
 
@@ -63,7 +63,7 @@ const TAB_AGENDA_SS = "AGENDA SERVIÇO SOCIAL";
 function updateClock(){
   const now = new Date();
   const date = now.toLocaleDateString("pt-BR");
-  const time = now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  const time = now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
   document.getElementById("clock").innerHTML = `${date} — ${time}`;
 }
 setInterval(updateClock,1000); updateClock();
