@@ -1,191 +1,145 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<title>Painel Frota — Vertical</title>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta http-equiv="refresh" content="60">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel da Frota</title>
+
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,Segoe UI,Arial,sans-serif}
-  body{background:#071029;color:#fff;overflow:hidden}
-  header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#041022;border-bottom:1px solid rgba(255,255,255,0.03)}
-  header img{height:60px}
-  .title{flex:1;text-align:center;font-size:26px;font-weight:700}
-  .clock{min-width:180px;text-align:right;font-size:18px}
-  .wrap{padding:12px;display:grid;grid-auto-rows:1fr;gap:12px;height:calc(100vh - 100px)}
-  .card{background:rgba(255,255,255,0.03);border-radius:12px;padding:12px;overflow:auto}
-  .card h2{text-align:center;margin-bottom:8px;color:#cfe8ff}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th,td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  th{position:sticky;top:0;background:rgba(255,255,255,0.02);font-weight:700}
-  tr.status-andamento{background:#2b2a00;color:#fff;font-weight:700}
-  tr.status-concluido{background:#00361e;color:#cfffe6;font-weight:700}
-  @keyframes piscarCancelado{0%{opacity:1}50%{opacity:.35}100%{opacity:1}}
-  tr.status-cancelado{background:#6b1414;color:#fff;text-decoration:line-through;animation:piscarCancelado 1s infinite}
+    body {
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: #fff;
+        margin: 0;
+        padding: 0;
+        text-align: center;
+    }
+
+    h1 {
+        margin-top: 10px;
+    }
+
+    table {
+        width: 95%;
+        margin: 20px auto;
+        border-collapse: collapse;
+        font-size: 22px;
+    }
+
+    th, td {
+        border: 1px solid #444;
+        padding: 10px;
+    }
+
+    th {
+        background: #333;
+    }
+
+    /* Cancelado – pisca */
+    .cancelado {
+        background: rgba(255, 0, 0, 0.5);
+        animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+        50% { background: rgba(255, 0, 0, 0.1); }
+    }
 </style>
+
 </head>
 <body>
 
-<header>
-  <img src="logo.png" alt="Logo">
-  <div class="title">PAINEL OPERACIONAL</div>
-  <div class="clock" id="clock">--:--</div>
-</header>
+<h1>🚗 Painel da Frota – Tempo Real</h1>
 
-<div class="wrap">
-  <div class="card">
-    <h2>PAINEL</h2>
-    <div id="painel"></div>
-  </div>
-
-  <div class="card">
-    <h2>AGENDA DO DIA</h2>
-    <div id="agendaDia"></div>
-  </div>
-
-  <div class="card">
-    <h2>AGENDA SERVIÇO SOCIAL</h2>
-    <div id="agendaSS"></div>
-  </div>
-</div>
+<div id="painel"></div>
+<div id="agenda"></div>
+<div id="agendaSocial"></div>
 
 <script>
-/* === CONFIG === */
-const SHEET_ID = "1Ch3AjQ0MDo4WuQWFDR3r8nZrHb4yQkSLOtT5_QgxT6E";
-
-/* nomes exatos das abas conforme pedido */
-const TAB_PAINEL = "PAINEL";
-const TAB_AGENDA_DIA = "AGENDA DO DIA";
-const TAB_AGENDA_SS = "AGENDA SERVIÇO SOCIAL";
-
-/* === RELÓGIO (BR) === */
-function updateClock(){
-  const now = new Date();
-  const date = now.toLocaleDateString("pt-BR");
-  const time = now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-  document.getElementById("clock").innerHTML = `${date} — ${time}`;
-}
-setInterval(updateClock,1000); updateClock();
-
-/* === HELPERS === */
-function escapeHtml(s){ return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-
-/* formatCell: converte apenas strings Date(...) ou TimeOfDay(...) e trata somenteHora flag */
-function formatCell(raw, somenteHora = false){
-  if (raw === null || raw === undefined) return "";
-  // se já for um objeto com v/f (possível em alguns retornos), prioriza
-  if (typeof raw === "object"){
-    if ("v" in raw) return formatCell(raw.v, somenteHora);
-    if ("f" in raw) return formatCell(raw.f, somenteHora);
-    try { return JSON.stringify(raw); } catch(e){ return String(raw); }
-  }
-  const s = String(raw).trim();
-
-  // Date(YYYY,MM,DD[,HH,MM,SS])
-  const dmatch = s.match(/^Date\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(\d+)\s*)?)?\)/);
-  if (dmatch){
-    const ano = dmatch[1];
-    const mes = String(Number(dmatch[2]) + 1).padStart(2,"0");
-    const dia = String(dmatch[3]).padStart(2,"0");
-    const hh = dmatch[4] ? String(dmatch[4]).padStart(2,"0") : "00";
-    const mm = dmatch[5] ? String(dmatch[5]).padStart(2,"0") : "00";
-    if (somenteHora) return `${hh}:${mm}`;
-    return `${dia}/${mes}/${ano} ${hh}:${mm}`;
-  }
-
-  // TimeOfDay(H,M,S)
-  const tmatch = s.match(/^TimeOfDay\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
-  if (tmatch){
-    const hh=String(tmatch[1]).padStart(2,"0"); const mm=String(tmatch[2]).padStart(2,"0");
-    if (somenteHora) return `${hh}:${mm}`; 
-    return `${hh}:${mm}:${String(tmatch[3]).padStart(2,"0")}`;
-  }
-
-  // ISO date/datetime YYYY-MM-DD[ T hh:mm...]
-  const isom = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}):?(\d{2})?)?/);
-  if (isom){
-    const dia = isom[3], mes=isom[2], ano=isom[1];
-    if (isom[4]) {
-      const hh = String(isom[4]).padStart(2,"0"), mm=String(isom[5]??"00").padStart(2,"0");
-      if (somenteHora) return `${hh}:${mm}`;
-      return `${dia}/${mes}/${ano} ${hh}:${mm}`;
-    }
-    return `${dia}/${mes}/${ano}`;
-  }
-
-  // fallback (texto)
-  return s;
-}
-
-/* parse gviz robusto */
-function parseGviz(text){
-  const first = text.indexOf("{");
-  const last = text.lastIndexOf("}");
-  if (first === -1 || last === -1) throw new Error("Resposta inesperada do Google Sheets");
-  return JSON.parse(text.substring(first, last+1));
-}
-
-/* render generic: receives sheetName to apply agenda-only rules */
-function renderFromGvizInto(targetDivId, sheetName, gvizJson){
-  const cols = (gvizJson.table.cols || []).map(c => c.label || "");
-  const rows = (gvizJson.table.rows || []).map(r => (r.c||[]).map(c => (c ? c.v : "")));
-
-  let html = "<table><thead><tr>";
-  cols.forEach(col => html += `<th>${escapeHtml(col)}</th>`);
-  html += "</tr></thead><tbody>";
-
-  rows.forEach(row => {
-    // status applied ONLY for agendas
-    const statusRaw = String(row[row.length-1] ?? "").toLowerCase();
-    let classe="";
-    if ((sheetName === TAB_AGENDA_DIA || sheetName === TAB_AGENDA_SS)){
-      if (statusRaw.includes("andamento")) classe="status-andamento";
-      if (statusRaw.includes("concluido") || statusRaw.includes("concluído")) classe="status-concluido";
-      if (statusRaw.includes("cancelado")) classe="status-cancelado";
+/* ============================================================
+   FUNÇÃO PARA FORMATAR DATAS E HORÁRIOS DO GOOGLE SHEETS
+   ============================================================ */
+function formatarGoogleDate(value) {
+    if (typeof value !== "string" || !value.startsWith("Date(")) {
+        return value;
     }
 
-    html += `<tr class="${classe}">`;
-    row.forEach((cell, idx) => {
-      const colName = cols[idx] || "";
-      const somenteHora = ( (sheetName === TAB_AGENDA_DIA || sheetName === TAB_AGENDA_SS) && /hora/i.test(colName) );
-      const valor = formatCell(cell, somenteHora);
-      html += `<td>${escapeHtml(valor)}</td>`;
-    });
-    html += "</tr>";
-  });
+    const match = value.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
+    if (!match) return value;
 
-  html += "</tbody></table>";
-  document.getElementById(targetDivId).innerHTML = html;
+    let [_, ano, mes, dia, hora, min, seg] = match.map(Number);
+
+    mes += 1; // ajustar mês do Google
+
+    // DATA REAL
+    if (!(ano === 1899 && dia === 30)) {
+        return `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${ano}`;
+    }
+
+    // SOMENTE HORA
+    return `${String(hora).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-/* fetcher with no-cache (GitHub Pages) */
-async function fetchSheet(sheetName){
-  const u = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&nocache=${Date.now()}`;
-  const r = await fetch(u, { cache: "no-store", mode: "cors" });
-  const text = await r.text();
-  return parseGviz(text);
+/* ============================================================
+   FUNÇÃO PARA BUSCAR E EXIBIR TABELA
+   ============================================================ */
+async function carregarTabela(aba, elementoDestino) {
+    try {
+        const url = `https://docs.google.com/spreadsheets/d/1Ch3AjQ0MDo4WuQWFDR3r8nZrHb4yQkSLOtT5_QgxT6E/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(aba)}&nocache=${Date.now()}`;
+
+        const res = await fetch(url);
+        let texto = await res.text();
+
+        texto = texto.replace("/*O_o*/", "").replace("google.visualization.Query.setResponse(", "").replace(/;\s*$/, "");
+
+        const json = JSON.parse(texto);
+
+        let html = `<h2>${aba}</h2><table><tr>`;
+
+        json.table.cols.forEach(col => {
+            html += `<th>${col.label}</th>`;
+        });
+
+        html += `</tr>`;
+
+        json.table.rows.forEach(linha => {
+            const status = linha.c.map(c => c?.v || "").join(" ").toLowerCase();
+            const classe = status.includes("cancel") ? "cancelado" : "";
+
+            html += `<tr class="${classe}">`;
+
+            linha.c.forEach(c => {
+                const valor = c ? formatarGoogleDate(c.v) : "";
+                html += `<td>${valor}</td>`;
+            });
+
+            html += `</tr>`;
+        });
+
+        html += `</table>`;
+
+        document.getElementById(elementoDestino).innerHTML = html;
+
+    } catch (e) {
+        document.getElementById(elementoDestino).innerHTML =
+            `<p style="color:red">Erro ao carregar a aba ${aba}</p>`;
+        console.error(e);
+    }
 }
 
-/* main load */
-async function loadAll(){
-  try{
-    const [gPainel, gAgenda, gSS] = await Promise.all([
-      fetchSheet(TAB_PAINEL),
-      fetchSheet(TAB_AGENDA_DIA),
-      fetchSheet(TAB_AGENDA_SS)
-    ]);
-    renderFromGvizInto("painel", TAB_PAINEL, gPainel);
-    renderFromGvizInto("agendaDia", TAB_AGENDA_DIA, gAgenda);
-    renderFromGvizInto("agendaSS", TAB_AGENDA_SS, gSS);
-  }catch(e){
-    console.error("Erro loadAll:",e);
-  }
+/* ============================================================
+   ATUALIZAÇÃO AUTOMÁTICA
+   ============================================================ */
+function atualizarTudo() {
+    carregarTabela("Painel", "painel");
+    carregarTabela("Agenda do Dia", "agenda");
+    carregarTabela("Agenda Serviço Social", "agendaSocial");
 }
 
-/* initial + interval */
-loadAll();
-setInterval(loadAll, 60000);
+atualizarTudo();
+setInterval(atualizarTudo, 60000);
 </script>
+
 </body>
 </html>
