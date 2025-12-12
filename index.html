@@ -1,144 +1,172 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta http-equiv="refresh" content="60">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel da Frota</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Unificado</title>
 
-<style>
+  <style>
     body {
-        font-family: Arial, sans-serif;
-        background: #111;
-        color: #fff;
-        margin: 0;
-        padding: 0;
-        text-align: center;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 0;
     }
 
     h1 {
-        margin-top: 10px;
+      text-align: center;
+      background: #0435bf;
+      color: white;
+      margin: 0;
+      padding: 15px;
+    }
+
+    .tabela-container {
+      margin: 20px auto;
+      width: 95%;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
 
     table {
-        width: 95%;
-        margin: 20px auto;
-        border-collapse: collapse;
-        font-size: 22px;
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
     }
 
     th, td {
-        border: 1px solid #444;
-        padding: 10px;
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
     }
 
-    th {
-        background: #333;
+    /* Cabeçalhos Azul */
+    table thead th {
+      background: #0435bf;
+      color: white;
     }
 
-    /* Cancelado – pisca */
+    /* Linhas canceladas */
     .cancelado {
-        background: rgba(255, 0, 0, 0.5);
-        animation: blink 1s infinite;
+      background: #ff000057;
+      animation: blink 1s infinite;
+      font-weight: bold;
     }
 
     @keyframes blink {
-        50% { background: rgba(255, 0, 0, 0.1); }
+      50% {
+        opacity: 0.2;
+      }
     }
-</style>
 
+  </style>
 </head>
+
 <body>
 
-<h1>🚗 Painel da Frota – Tempo Real</h1>
+  <h1>PAINEL — AGENDA DO DIA — SERVIÇO SOCIAL</h1>
 
-<div id="painel"></div>
-<div id="agenda"></div>
-<div id="agendaSocial"></div>
+  <div id="painel" class="tabela-container">
+    <h2>Painel</h2>
+    <table id="tablePainel"></table>
+  </div>
+
+  <div id="agendaDia" class="tabela-container">
+    <h2>Agenda do Dia</h2>
+    <table id="tableAgenda"></table>
+  </div>
+
+  <div id="agendaSS" class="tabela-container">
+    <h2>Agenda Serviço Social</h2>
+    <table id="tableSS"></table>
+  </div>
 
 <script>
-/* ============================================================
-   FUNÇÃO PARA FORMATAR DATAS E HORÁRIOS DO GOOGLE SHEETS
-   ============================================================ */
-function formatarGoogleDate(value) {
-    if (typeof value !== "string" || !value.startsWith("Date(")) {
-        return value;
-    }
+/* -----------------------------------------------------------
+   Funções de formatação
+----------------------------------------------------------- */
 
-    const match = value.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
-    if (!match) return value;
-
-    let [_, ano, mes, dia, hora, min, seg] = match.map(Number);
-
-    mes += 1; // ajustar mês do Google
-
-    // DATA REAL
-    if (!(ano === 1899 && dia === 30)) {
-        return `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${ano}`;
-    }
-
-    // SOMENTE HORA
-    return `${String(hora).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+function formatarDataBR(dateStr) {
+  if (!dateStr || !dateStr.startsWith("Date(")) return dateStr;
+  const nums = dateStr.match(/\d+/g);
+  if (!nums) return dateStr;
+  const ano = nums[0];
+  const mes = String(Number(nums[1]) + 1).padStart(2, "0");
+  const dia = String(nums[2]).padStart(2, "0");
+  return `${dia}/${mes}/${ano}`;
 }
 
-/* ============================================================
-   FUNÇÃO PARA BUSCAR E EXIBIR TABELA
-   ============================================================ */
-async function carregarTabela(aba, elementoDestino) {
-    try {
-        const url = `https://docs.google.com/spreadsheets/d/1Ch3AjQ0MDo4WuQWFDR3r8nZrHb4yQkSLOtT5_QgxT6E/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(aba)}&nocache=${Date.now()}`;
-
-        const res = await fetch(url);
-        let texto = await res.text();
-
-        texto = texto.replace("/*O_o*/", "").replace("google.visualization.Query.setResponse(", "").replace(/;\s*$/, "");
-
-        const json = JSON.parse(texto);
-
-        let html = `<h2>${aba}</h2><table><tr>`;
-
-        json.table.cols.forEach(col => {
-            html += `<th>${col.label}</th>`;
-        });
-
-        html += `</tr>`;
-
-        json.table.rows.forEach(linha => {
-            const status = linha.c.map(c => c?.v || "").join(" ").toLowerCase();
-            const classe = status.includes("cancel") ? "cancelado" : "";
-
-            html += `<tr class="${classe}">`;
-
-            linha.c.forEach(c => {
-                const valor = c ? formatarGoogleDate(c.v) : "";
-                html += `<td>${valor}</td>`;
-            });
-
-            html += `</tr>`;
-        });
-
-        html += `</table>`;
-
-        document.getElementById(elementoDestino).innerHTML = html;
-
-    } catch (e) {
-        document.getElementById(elementoDestino).innerHTML =
-            `<p style="color:red">Erro ao carregar a aba ${aba}</p>`;
-        console.error(e);
-    }
+function formatarHoraBR(dateStr) {
+  if (!dateStr || !dateStr.startsWith("Date(")) return dateStr;
+  const nums = dateStr.match(/\d+/g);
+  if (!nums || nums.length < 6) return dateStr;
+  const h = String(nums[3]).padStart(2, "0");
+  const m = String(nums[4]).padStart(2, "0");
+  return `${h}:${m}`;
 }
 
-/* ============================================================
-   ATUALIZAÇÃO AUTOMÁTICA
-   ============================================================ */
+/* -----------------------------------------------------------
+   FUNÇÃO PARA BUSCAR QUALQUER ABA
+----------------------------------------------------------- */
+async function carregarAba(sheetName, tabelaId) {
+  const table = document.getElementById(tabelaId);
+  table.innerHTML = "<tr><td>Carregando...</td></tr>";
+
+  const url = `https://docs.google.com/spreadsheets/d/1Ch3AjQ0MDo4WuQWFDR3r8nZrHb4yQkSLOtT5_QgxT6E/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&nocache=${Date.now()}`;
+
+  try {
+    const r = await fetch(url);
+    let txt = await r.text();
+    txt = txt.replace("/*O_o*/", "").replace(/google\.visualization\.Query\.setResponse\(/, "").replace(/\);\s*$/, "");
+    const json = JSON.parse(txt);
+
+    const cols = json.table.cols.map(c => c.label);
+    const rows = json.table.rows.map(r => r.c.map(c => (c ? c.v : "")));
+
+    let html = "<thead><tr>";
+    cols.forEach(c => html += `<th>${c}</th>`);
+    html += "</tr></thead><tbody>";
+
+    rows.forEach(row => {
+      const status = (row[row.length - 1] + "").toLowerCase();
+      const cancelado = status.includes("cancel");
+
+      html += `<tr class="${cancelado ? "cancelado" : ""}">`;
+
+      row.forEach((cel, index) => {
+        const colName = cols[index].toLowerCase();
+        let valor = cel;
+
+        if (colName.includes("data")) valor = formatarDataBR(cel);
+        if (colName.includes("hora")) valor = formatarHoraBR(cel);
+
+        html += `<td>${valor}</td>`;
+      });
+
+      html += "</tr>";
+    });
+
+    html += "</tbody>";
+    table.innerHTML = html;
+
+  } catch (e) {
+    table.innerHTML = "<tr><td>Erro ao carregar dados.</td></tr>";
+  }
+}
+
+/* -----------------------------------------------------------
+   CARREGAR AUTOMATICAMENTE A CADA 30s
+----------------------------------------------------------- */
 function atualizarTudo() {
-    carregarTabela("Painel", "painel");
-    carregarTabela("Agenda do Dia", "agenda");
-    carregarTabela("Agenda Serviço Social", "agendaSocial");
+  carregarAba("PAINEL", "tablePainel");
+  carregarAba("AGENDA DO DIA", "tableAgenda");
+  carregarAba("AGENDA SERVIÇO SOCIAL", "tableSS");
 }
 
 atualizarTudo();
-setInterval(atualizarTudo, 60000);
+setInterval(atualizarTudo, 30000);
 </script>
 
 </body>
