@@ -1,173 +1,166 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Painel Unificado</title>
+<meta charset="utf-8" />
+<title>Painel Frota — Vertical</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      margin: 0;
-      padding: 0;
-    }
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 
-    h1 {
-      text-align: center;
-      background: #0435bf;
-      color: white;
-      margin: 0;
-      padding: 15px;
-    }
+<style>
+  *{box-sizing:border-box;
+margin:0;
+padding:0;
+font-family:Inter,Segoe UI,Arial,sans-serif
+}
+  html,body{height:100%}
+  body{background:#071029;color:#fff;overflow:hidden}
 
-    .tabela-container {
-      margin: 20px auto;
-      width: 95%;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
+  header{
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:10px 18px;
+background:#041022;
+border-bottom:1px solid rgba(255,255,255,0.03)
+}
+  header img{
+height:56px
+}
+  .title{font-size:22px;font-weight:700}
+  .clock{font-size:16px}
+  .row{
+display:flex;
+gap:12px;
+padding:12px;
+height:calc(100vh - 86px)
+}
+  .col{flex:1;background:rgba(255,255,255,0.03);border-radius:12px;padding:12px;overflow:auto}
+  .col h2{
+text-align:center;
+margin-bottom:8px;
+color:#cfe8ff
+}
+  table{
+width:100%;border-collapse:collapse;
+font-size:13px
+}
+  th,td{
+padding:6px 8px;
+border-bottom:1px solid rgba(255,255,255,0.03);
+text-align:left;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis
+}
+  th{background:rgba(255,255,255,0.02);position:sticky;top:0}
+  tr.status-andamento{background:#2b2a00;color:#fff;font-weight:700}
+  tr.status-concluido{background:#00361e;color:#cfffe6;font-weight:700}
+  @keyframes piscarCancelado{0%{opacity:1}50%{opacity:.35}100%{opacity:1}}
+  tr.status-cancelado{background:#6b1414;color:#fff;text-decoration:line-through;animation:piscarCancelado 1s infinite}
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
-      text-align: left;
-    }
-
-    /* Cabeçalhos Azul */
-    table thead th {
-      background: #0435bf;
-      color: white;
-    }
-
-    /* Linhas canceladas */
-    .cancelado {
-      background: #ff000057;
-      animation: blink 5s infinite;
-      font-weight: bold;
-    }
-
-    @keyframes blink {
-      50% {
-        opacity: 0.2;
-      }
-    }
-
-  </style>
+</style>
 </head>
-
 <body>
+<header>
+  <img src="logo.png" alt="Logo">
+  <div class="title">PAINEL DE SAÍDAS</div>
+  <div class="clock" id="clockTop">--:--</div>
+</header>
 
-  <h1>PAINEL — AGENDA DO DIA — SERVIÇO SOCIAL</h1>
-
-  <div id="painel" class="tabela-container">
-    <h2>Painel</h2>
-    <table id="tablePainel"></table>
-  </div>
-
-  <div id="agendaDia" class="tabela-container">
-    <h2>Agenda do Dia</h2>
-    <table id="tableAgenda"></table>
-  </div>
-
-  <div id="agendaSS" class="tabela-container">
-    <h2>Agenda Serviço Social</h2>
-    <table id="tableSS"></table>
-  </div>
+<div class="row">
+  <div class="col" id="colPainel"><h2>PAINEL</h2><div id="painelH"></div></div>
+  <div class="col" id="colAgenda"><h2>AGENDA DO DIA</h2><div id="agendaDiaH"></div></div>
+  <div class="col" id="colSS"><h2>AGENDA SERVIÇO SOCIAL</h2><div id="agendaSSH"></div></div>
+</div>
 
 <script>
-/* -----------------------------------------------------------
-   Funções de formatação
------------------------------------------------------------ */
+/* same configuration as vertical */
+const SHEET_ID = "1Ch3AjQ0MDo4WuQWFDR3r8nZrHb4yQkSLOtT5_QgxT6E";
+const TAB_PAINEL = "PAINEL";
+const TAB_AGENDA_DIA = "AGENDA DO DIA";
+const TAB_AGENDA_SS = "AGENDA SERVIÇO SOCIAL";
 
-function formatarDataBR(dateStr) {
-  if (!dateStr || !dateStr.startsWith("Date(")) return dateStr;
-  const nums = dateStr.match(/\d+/g);
-  if (!nums) return dateStr;
-  const ano = nums[0];
-  const mes = String(Number(nums[1]) + 1).padStart(2, "0");
-  const dia = String(nums[2]).padStart(2, "0");
-  return `${dia}/${mes}/${ano}`;
+/* clock */
+function tickTop(){ const n=new Date(); document.getElementById("clockTop").innerText = n.toLocaleDateString("pt-BR") + " " + n.toLocaleTimeString("pt-BR",{hour:'2-digit',minute:'2-digit'}); }
+setInterval(tickTop,1000); tickTop();
+
+/* helpers from vertical (copied) */
+function escapeHtml(s){return String(s ?? "").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function formatCell(raw,somenteHora=false){
+  if (raw===null||raw===undefined) return "";
+  if (typeof raw === "object"){ if("v" in raw) return formatCell(raw.v,somenteHora); if("f" in raw) return formatCell(raw.f,somenteHora); try{return JSON.stringify(raw)}catch(e){return String(raw)}}
+  const s=String(raw).trim();
+  const dmatch = s.match(/^Date\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(\d+)\s*)?)?\)/);
+  if (dmatch){ const ano=dmatch[1]; const mes=String(Number(dmatch[2])+1).padStart(2,'0'); const dia=String(dmatch[3]).padStart(2,'0'); const hh=dmatch[4]?String(dmatch[4]).padStart(2,'0'):'00'; const mm=dmatch[5]?String(dmatch[5]).padStart(2,'0'):'00'; if(somenteHora) return `${hh}:${mm}`; return `${dia}/${mes}/${ano} ${hh}:${mm}`;}
+  const tmatch = s.match(/^TimeOfDay\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+  if (tmatch){ const hh=String(tmatch[1]).padStart(2,'0'); const mm=String(tmatch[2]).padStart(2,'0'); if(somenteHora) return `${hh}:${mm}`; return `${hh}:${mm}:${String(tmatch[3]).padStart(2,'0')}`; }
+  const isom = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}):?(\d{2})?)?/);
+  if (isom){ const dia=isom[3], mes=isom[2], ano=isom[1]; if(isom[4]){ const hh=String(isom[4]).padStart(2,'0'), mm=String(isom[5]??'00').padStart(2,'0'); if(somenteHora) return `${hh}:${mm}`; return `${dia}/${mes}/${ano} ${hh}:${mm}` } return `${dia}/${mes}/${ano}` }
+  return s;
 }
+function parseGviz(text){ const a=text.indexOf('{'), b=text.lastIndexOf('}'); if(a===-1||b===-1) throw new Error('gviz'); return JSON.parse(text.substring(a,b+1));}
 
-function formatarHoraBR(dateStr) {
-  if (!dateStr || !dateStr.startsWith("Date(")) return dateStr;
-  const nums = dateStr.match(/\d+/g);
-  if (!nums || nums.length < 6) return dateStr;
-  const h = String(nums[3]).padStart(2, "0");
-  const m = String(nums[4]).padStart(2, "0");
-  return `${h}:${m}`;
-}
+ 
 
-/* -----------------------------------------------------------
-   FUNÇÃO PARA BUSCAR QUALQUER ABA
------------------------------------------------------------ */
-async function carregarAba(sheetName, tabelaId) {
-  const table = document.getElementById(tabelaId);
-  table.innerHTML = "<tr><td>Carregando...</td></tr>";
-
-  const url = `https://docs.google.com/spreadsheets/d/1Ch3AjQ0MDo4WuQWFDR3r8nZrHb4yQkSLOtT5_QgxT6E/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&nocache=${Date.now()}`;
-
-  try {
-    const r = await fetch(url);
-    let txt = await r.text();
-    txt = txt.replace("/*O_o*/", "").replace(/google\.visualization\.Query\.setResponse\(/, "").replace(/\);\s*$/, "");
-    const json = JSON.parse(txt);
-
-    const cols = json.table.cols.map(c => c.label);
-    const rows = json.table.rows.map(r => r.c.map(c => (c ? c.v : "")));
-
-    let html = "<thead><tr>";
-    cols.forEach(c => html += `<th>${c}</th>`);
-    html += "</tr></thead><tbody>";
-
-    rows.forEach(row => {
-      const status = (row[row.length - 1] + "").toLowerCase();
-      const cancelado = status.includes("cancel");
-
-      html += `<tr class="${cancelado ? "cancelado" : ""}">`;
-
-      row.forEach((cel, index) => {
-        const colName = cols[index].toLowerCase();
-        let valor = cel;
-
-        if (colName.includes("data")) valor = formatarDataBR(cel);
-        if (colName.includes("hora")) valor = formatarHoraBR(cel);
-
-        html += `<td>${valor}</td>`;
-      });
-
-      html += "</tr>";
+/* render generic */
+function renderGeneric(targetId,sheetName,gvizJson){
+  const cols = (gvizJson.table.cols||[]).map(c=>c.label||'');
+  const rows = (gvizJson.table.rows||[]).map(r => (r.c||[]).map(c=> (c?c.v:'')));
+  let html = '<table><thead><tr>'; cols.forEach(c=> html+= `<th>${escapeHtml(c)}</th>`); html += '</tr></thead><tbody>';
+  rows.forEach(row=>{
+    const statusRaw = String(row[row.length-1] ?? '').toLowerCase();
+    let cls='';
+    if ((sheetName===TAB_AGENDA_DIA||sheetName===TAB_AGENDA_SS)){
+      if (statusRaw.includes('andamento')) cls='status-andamento';
+      if (statusRaw.includes('concluido')||statusRaw.includes('concluído')) cls='status-concluido';
+      if (statusRaw.includes('cancelado')) cls='status-cancelado';
+    }
+    html += `<tr class="${cls}">`;
+    row.forEach((cell,idx)=>{
+      const colName = cols[idx]||'';
+      const somenteHora = ((sheetName===TAB_AGENDA_DIA||sheetName===TAB_AGENDA_SS) && /hora/i.test(colName));
+      const v = formatCell(cell,somenteHora);
+      html += `<td>${escapeHtml(v)}</td>`;
     });
+   
+   html += '</tr>';
+  });
 
-    html += "</tbody>";
-    table.innerHTML = html;
-
-  } catch (e) {
-    table.innerHTML = "<tr><td>Erro ao carregar dados.</td></tr>";
-  }
+  html += '</tbody></table>';
+  document.getElementById(targetId).innerHTML = html;
 }
 
-/* -----------------------------------------------------------
-   CARREGAR AUTOMATICAMENTE A CADA 30s
------------------------------------------------------------ */
-function atualizarTudo() {
-  carregarAba("PAINEL", "tablePainel");
-  carregarAba("AGENDA DO DIA", "tableAgenda");
-  carregarAba("AGENDA SERVIÇO SOCIAL", "tableSS");
+/* fetcher */
+async function fetchSheetG(sheetName){
+  const u=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&nocache=${Date.now()}`;
+  const r = await fetch(u, {cache:'no-store', mode:'cors'}); const t = await r.text(); return parseGviz(t);
 }
 
-atualizarTudo();
-setInterval(atualizarTudo, 60000);
+/* load & interval */
+async function loadH(){
+  try{
+    const [g1,g2,g3] = await Promise.all([fetchSheetG(TAB_PAINEL), fetchSheetG(TAB_AGENDA_DIA), fetchSheetG(TAB_AGENDA_SS)]);
+    renderGeneric('painelH', TAB_PAINEL, g1); // note: painelH id not present — use painelH mapping below
+    // we used different target ids in markup:
+    renderGeneric('painelH', TAB_PAINEL, g1); // actually below we use painelH? ensure matching IDs
+  }catch(e){ console.error(e) }
+}
+
+/* map correct IDs then call */
+async function loadAllH(){
+  try{
+    const [g1,g2,g3]=await Promise.all([fetchSheetG(TAB_PAINEL),fetchSheetG(TAB_AGENDA_DIA),fetchSheetG(TAB_AGENDA_SS)]);
+    renderGeneric('painelH',TAB_PAINEL,g1);
+    renderGeneric('agendaDiaH',TAB_AGENDA_DIA,g2);
+    renderGeneric('agendaSSH',TAB_AGENDA_SS,g3);
+  }catch(e){console.error(e)}
+}
+
+loadAllH();
+setInterval(loadAllH,60000);
 </script>
-
 </body>
 </html>
